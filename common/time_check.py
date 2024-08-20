@@ -1,3 +1,4 @@
+import hashlib
 import re
 import time
 import config

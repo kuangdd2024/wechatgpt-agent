@@ -11,8 +11,9 @@ from bridge.reply import Reply, ReplyType
 from common.log import logger
 from common.tmp_dir import TmpDir
 from config import conf
-from voice.audio_convert import get_pcm_from_wav
+from voice.audio_convert import get_pcm_from_wav, any_to_wav
 from voice.voice import Voice
+from pydub import AudioSegment
 
 """
     百度的语音识别API.
@@ -61,7 +62,14 @@ class BaiduVoice(Voice):
     def voiceToText(self, voice_file):
         # 识别本地文件
         logger.debug("[Baidu] voice file name={}".format(voice_file))
-        pcm = get_pcm_from_wav(voice_file)
+        # 转为wav格式
+        wav_file = os.path.join(TmpDir().path(), f"{os.path.basename(voice_file)}.wav")
+        any_to_wav(voice_file, wav_file)
+        seg = AudioSegment.from_file(wav_file)
+        seg = seg.set_frame_rate(16000).set_sample_width(2).set_channels(1)
+        seg.export(wav_file, format='wav')
+
+        pcm = get_pcm_from_wav(wav_file)
         res = self.client.asr(pcm, "pcm", 16000, {"dev_pid": self.dev_id})
         if res["err_no"] == 0:
             logger.info("百度语音识别到了：{}".format(res["result"]))

@@ -59,10 +59,15 @@ class Bridge(object):
                 if not conf().get("text_to_voice") or conf().get("text_to_voice") in ["openai", const.TTS_1, const.TTS_1_HD]:
                     self.btype["text_to_voice"] = const.LINKAI
 
+        if model_type in ["claude"]:
+            self.btype["chat"] = const.CLAUDEAI
+        if model_type in ["notebot"]:
+            self.btype["chat"] = const.NOTEBOT
+            self.btype["voice_to_text"] = const.NOTEBOT
+            self.btype["text_to_voice"] = const.NOTEBOT
         self.bots = {}
         self.chat_bots = {}
 
-    # 模型对应的接口
     def get_bot(self, typename):
         if self.bots.get(typename) is None:
             logger.info("create bot {} for {}".format(self.btype[typename], typename))

@@ -1,6 +1,6 @@
 ## 插件说明
 
-基于 LinkAI 提供的知识库、Midjourney绘画、文档对话等能力对机器人的功能进行增强。平台地址: https://link-ai.tech/console
+基于 LinkAI 提供的知识库、Midjourney绘画、文档对话等能力对机器人的功能进行增强。平台地址: https://chat.link-ai.tech/console
 
 ## 插件配置
 

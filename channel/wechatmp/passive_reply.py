@@ -138,6 +138,7 @@ class Query:
                     return "success"
 
                 if reply_type == "text":
+                    logger.info(f'reply_content: {reply_content}')
                     if len(reply_content.encode("utf8")) <= MAX_UTF8_LEN:
                         reply_text = reply_content
                     else:

@@ -17,6 +17,7 @@ class WeChatMPMessage(ChatMessage):
             self.ctype = ContextType.TEXT
             self.content = msg.content
         elif msg.type == "voice":
+            logger.info(f'msg.recognition: {msg.recognition}')
             if msg.recognition == None:
                 self.ctype = ContextType.VOICE
                 self.content = TmpDir().path() + msg.media_id + "." + msg.format  # content直接存临时目录路径
@@ -50,7 +51,7 @@ class WeChatMPMessage(ChatMessage):
             self._prepare_fn = download_image
         else:
             raise NotImplementedError("Unsupported message type: Type:{} ".format(msg.type))
-
+        logger.info(f'msg.content: {self.content}')
         self.from_user_id = msg.source
         self.to_user_id = msg.target
         self.other_user_id = msg.source

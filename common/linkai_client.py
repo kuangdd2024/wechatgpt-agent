@@ -9,7 +9,6 @@ import time
 
 chat_client: LinkAIClient
 
-
 class ChatClient(LinkAIClient):
     def __init__(self, api_key, host, channel):
         super().__init__(api_key, host)

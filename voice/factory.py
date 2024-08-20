@@ -50,4 +50,8 @@ def create_voice(voice_type):
         from voice.xunfei.xunfei_voice import XunfeiVoice
 
         return XunfeiVoice()
+    elif voice_type == "notebot":
+        from bot.notebot.notebot_chat_agent import NoteBot
+
+        return NoteBot()
     raise RuntimeError

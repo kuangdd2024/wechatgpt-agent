@@ -27,6 +27,7 @@ class ChatChannel(Channel):
     futures = {}  # 记录每个session_id提交到线程池的future对象, 用于重置会话时把没执行的future取消掉，正在执行的不会被取消
     sessions = {}  # 用于控制并发，每个session_id同时只能有一个context在处理
     lock = threading.Lock()  # 用于控制对sessions的访问
+    handler_pool = ThreadPoolExecutor(max_workers=8)  # 处理消息的线程池
 
     def __init__(self):
         _thread = threading.Thread(target=self.consume)
@@ -195,22 +196,23 @@ class ChatChannel(Channel):
                 cmsg = context["msg"]
                 cmsg.prepare()
                 file_path = context.content
-                wav_path = os.path.splitext(file_path)[0] + ".wav"
-                try:
-                    any_to_wav(file_path, wav_path)
-                except Exception as e:  # 转换失败，直接使用mp3，对于某些api，mp3也可以识别
-                    logger.warning("[chat_channel]any to wav error, use raw path. " + str(e))
-                    wav_path = file_path
+                # fixme 原仓库启用这些行的代码
+                # wav_path = os.path.splitext(file_path)[0] + ".wav"
+                # try:
+                #     any_to_wav(file_path, wav_path)
+                # except Exception as e:  # 转换失败，直接使用mp3，对于某些api，mp3也可以识别
+                #     logger.warning("[WX]any to wav error, use raw path. " + str(e))
+                #     wav_path = file_path
                 # 语音识别
-                reply = super().build_voice_to_text(wav_path)
+                reply = super().build_voice_to_text(file_path)
                 # 删除临时文件
-                try:
-                    os.remove(file_path)
-                    if wav_path != file_path:
-                        os.remove(wav_path)
-                except Exception as e:
-                    pass
-                    # logger.warning("[chat_channel]delete temp file error: " + str(e))
+                # try:
+                #     os.remove(file_path)
+                #     if wav_path != file_path:
+                #         os.remove(wav_path)
+                # except Exception as e:
+                #     pass
+                #     # logger.warning("[WX]delete temp file error: " + str(e))
 
                 if reply.type == ReplyType.TEXT:
                     new_context = self._compose_context(ContextType.TEXT, reply.content, **context.kwargs)

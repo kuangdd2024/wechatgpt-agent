@@ -4,8 +4,10 @@ azure voice service
 import json
 import os
 import time
+import traceback
 
 import azure.cognitiveservices.speech as speechsdk
+import pydub
 from langid import classify
 
 from bridge.reply import Reply, ReplyType
@@ -23,7 +25,7 @@ Azure voice
 """
 
 
-class AzureVoice(Voice):
+class AzureVoiceV1(Voice):
     def __init__(self):
         try:
             curdir = os.path.dirname(__file__)
@@ -90,6 +92,84 @@ class AzureVoice(Voice):
             reply = Reply(ReplyType.VOICE, fileName)
         else:
             cancel_details = result.cancellation_details
-            logger.error("[Azure] textToVoice error, result={}, errordetails={}".format(result, cancel_details.error_details))
+            logger.error(
+                "[Azure] textToVoice error, result={}, errordetails={}".format(result, cancel_details.error_details))
             reply = Reply(ReplyType.ERROR, "抱歉，语音合成失败")
+        return reply
+
+
+class AzureVoice(Voice):
+    def __init__(self):
+        try:
+            curdir = os.path.dirname(__file__)
+            config_path = os.path.join(curdir, "config.json")
+            config = None
+            if not os.path.exists(config_path):  # 如果没有配置文件，创建本地配置文件
+                config = {
+                    "speech_synthesis_voice_name": "zh-CN-XiaoxiaoNeural",  # 识别不出时的默认语音
+                    "auto_detect": True,  # 是否自动检测语言
+                    "speech_synthesis_zh": "zh-CN-XiaozhenNeural",
+                    "speech_synthesis_en": "en-US-JacobNeural",
+                    "speech_synthesis_ja": "ja-JP-AoiNeural",
+                    "speech_synthesis_ko": "ko-KR-SoonBokNeural",
+                    "speech_synthesis_de": "de-DE-LouisaNeural",
+                    "speech_synthesis_fr": "fr-FR-BrigitteNeural",
+                    "speech_synthesis_es": "es-ES-LaiaNeural",
+                    "speech_recognition_language": "zh-CN",
+                }
+                with open(config_path, "w") as fw:
+                    json.dump(config, fw, indent=4)
+            else:
+                with open(config_path, "r") as fr:
+                    config = json.load(fr)
+            self.config = config
+            self.api_key = conf().get("azure_voice_api_key")
+            self.api_region = conf().get("azure_voice_region")
+            self.speech_config = speechsdk.SpeechConfig(subscription=self.api_key, region=self.api_region)
+            self.speech_config.speech_synthesis_voice_name = self.config["speech_synthesis_voice_name"]
+            self.speech_config.speech_recognition_language = self.config["speech_recognition_language"]
+        except Exception as e:
+            logger.warn("AzureVoice init failed: %s, ignore " % e)
+
+    def voiceToText(self, voice_file):
+        audio_config = speechsdk.AudioConfig(filename=voice_file)
+        speech_recognizer = speechsdk.SpeechRecognizer(speech_config=self.speech_config, audio_config=audio_config)
+        result = speech_recognizer.recognize_once()
+        if result.reason == speechsdk.ResultReason.RecognizedSpeech:
+            logger.info("[Azure] voiceToText voice file name={} text={}".format(voice_file, result.text))
+            reply = Reply(ReplyType.TEXT, result.text)
+        else:
+            cancel_details = result.cancellation_details
+            logger.error(
+                "[Azure] voiceToText error, result={}, errordetails={}".format(result, cancel_details.error_details))
+            reply = Reply(ReplyType.ERROR, "抱歉，语音识别失败")
+        return reply
+
+    def textToVoice(self, text):
+        """
+            voices = ['zh-CN-XiaoxiaoNeural/Female', 'zh-CN-XiaoyiNeural/Female', 'zh-CN-YunjianNeural/Male',
+              'zh-CN-YunxiNeural/Male',
+              'zh-CN-YunxiaNeural/Male', 'zh-CN-YunyangNeural/Male', 'zh-CN-liaoning-XiaobeiNeural/Female',
+              'zh-CN-shaanxi-XiaoniNeural/Female', 'zh-HK-HiuGaaiNeural/Female', 'zh-HK-HiuMaanNeural/Female',
+              'zh-HK-WanLungNeural/Male', 'zh-TW-HsiaoChenNeural/Female', 'zh-TW-HsiaoYuNeural/Female',
+              'zh-TW-YunJheNeural/Male']
+        """
+        # Avoid the same filename under multithreading
+        fileName = TmpDir().path() + "reply-" + str(int(time.time())) + "-" + str(hash(text) & 0x7FFFFFFF) + ".wav"
+        logger.info("[Edge-tts] textToVoice text={} voice file name={}".format(text, fileName))
+
+        try:
+            voice = 'zh-CN-YunxiNeural'
+            rate = '+0%'
+            volume = '+0%'
+            pitch = '+0Hz'
+            os.system(
+                f'edge-tts --voice {voice} --rate={rate} --volume={volume} --pitch={pitch} --text "{text}" --write-media "{fileName}"')
+
+            pydub.AudioSegment.from_file(fileName).export(fileName, format='wav')
+            reply = Reply(ReplyType.VOICE, fileName)
+        except Exception as e:
+            traceback.print_exc()
+            reply = Reply(ReplyType.ERROR, "抱歉，语音合成失败")
+
         return reply

@@ -214,3 +214,13 @@ class AliyunTokenGenerator:
         response = requests.get(url)
 
         return response.text
+
+if __name__ == "__main__":
+    appkey = 'y40SBiZf******'
+    token = 'a80ee2906c9f4e***************'
+
+    # 服务请求地址
+    url = 'https://nls-gateway-cn-shanghai.aliyuncs.com/stream/v1/tts'
+
+    out = text_to_speech_aliyun(url=url, text='你好，欢迎来到智能体机器人的世界！', appkey=appkey, token=token)
+    print(out)
