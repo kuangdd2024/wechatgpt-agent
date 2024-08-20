@@ -30,6 +30,4 @@ WORKDIR ${BUILD_PREFIX}
 
 COPY . ${BUILD_PREFIX}
 
-RUN sed -i 's/"wechatmp",/"wx",/g' ${BUILD_PREFIX}/config.json
-
 CMD python app.py

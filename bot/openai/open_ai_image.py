@@ -65,7 +65,7 @@ class OpenAIImage(object):
             # image_url = response["data"][0]["url"]
             size = conf().get("image_create_size", "720x1280")
             w, h = size.split('x')
-            image_url = f'https://image.pollinations.ai/prompt/{query}?width={w}&height={h}&seed={int(time.time())}'
+            image_url = f'https://image.pollinations.ai/prompt/{query}?width={w}&height={h}&seed={int(time.time())}&nologo=true'
             logger.info("[pollinations] image_url={}".format(image_url))
             return True, image_url
         except openai.error.RateLimitError as e:
