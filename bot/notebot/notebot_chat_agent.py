@@ -15,7 +15,11 @@ from ..xunfei.xunfei_spark_bot import reply_map, queue_map, ReplyType
 # from voice.baidu.baidu_voice import BaiduVoice
 from voice.ali.ali_voice import AliVoice
 from voice.azure.azure_voice import AzureVoice
-from ..openai.open_ai_image import OpenAIImage
+from .notebot_image import NotebotImage
+
+from dotenv import load_dotenv
+
+load_dotenv('.env')
 
 oov_answer_text = '''
 你这样说，我理解不了。
@@ -35,19 +39,20 @@ _esman_manage_api = os.environ.get('esman_manage_api', 'http://localhost:6043/ma
 _esman_search_api = os.environ.get('esman_search_api', 'http://localhost:6043/search')
 
 
-class NoteBot(XunFeiBot):
+class NoteBot(XunFeiBot, NotebotImage):
     def __init__(self):
         super().__init__()
         self.esman_manage_api = _esman_manage_api
         self.esman_search_api = _esman_search_api
         self.voiceToText = AliVoice().voiceToText
         self.textToVoice = AzureVoice().textToVoice
-        self.create_img = OpenAIImage().create_img
 
     def parse_query(self, query, context: Context = None) -> str:
         if context.type == ContextType.VOICE:
-            out_text = self.voiceToText(query).content
-            # out_text = context["Recognition"]
+            if "Recognition" in context:
+                out_text = context["Recognition"]
+            else:
+                out_text = self.voiceToText(query).content
         elif context.type == ContextType.IMAGE:
             out_text = '计划OCR识别文字和大模型介绍图片，敬请期待！'
         elif context.type == ContextType.VIDEO:

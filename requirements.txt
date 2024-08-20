@@ -25,3 +25,5 @@ azure-cognitiveservices-speech # azure voice
 numpy<=1.24.2
 langid # language detect
 edge-tts
+python-dotenv
+pillow
