@@ -2,6 +2,7 @@ import hashlib
 import base64
 import os.path
 import re
+import traceback
 
 import requests
 import threading
@@ -19,7 +20,10 @@ from .notebot_image import NotebotImage
 
 from dotenv import load_dotenv
 
-load_dotenv('.env')
+try:
+    load_dotenv('.env')
+except Exception as e:
+    traceback.print_exc()
 
 oov_answer_text = '''
 你这样说，我理解不了。
