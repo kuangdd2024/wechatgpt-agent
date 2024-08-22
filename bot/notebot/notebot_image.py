@@ -25,8 +25,14 @@ class NotebotImage(object):
         try:
             logger.info("[Pollinations] image_query={}".format(query))
 
-            size = conf().get("image_create_size", "768x768")
-            w, h = size.split('x')
+            m = re.match(r'(\d+)\s*[+\-x*/]\s*(\d+)(.+)', query)
+            if m:
+                w = m.group(1)
+                h = m.group(2)
+                query = m.group(3)
+            else:
+                size = conf().get("image_create_size", "768x768")
+                w, h = size.split('x')
             image_url = f'https://image.pollinations.ai/prompt/{query}?width={w}&height={h}&seed={int(time.time())}&nologo=true&model=flux'
             try:
                 response = requests.get(image_url, verify=False, timeout=(10, 20))
@@ -66,8 +72,8 @@ class NotebotImage(object):
             return False, "画图出现问题，请休息一下再问我吧"
 
     def create_chars_image(self, text, image="1280x720/73-109-137", font="msyh.ttc+40", location=(0.5, 0.85),
-                          color=(255, 255, 255),
-                          image_output=''):
+                           color=(255, 255, 255),
+                           image_output=''):
         if re.match(r'\d+x\d+/\d+-\d+-\d+', image):
             size, desc = image.split('/')
             width, height = size.split('x')

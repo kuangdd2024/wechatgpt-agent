@@ -114,8 +114,12 @@ class NoteBot(XunFeiBot, NotebotImage):
             note_flag = query.strip().endswith('！！！') \
                         or re.search(r'(记录|记忆)(一下|信息|内容)\W*$', query.strip()) \
                         or re.search(r'^\W*(记录|记忆)(一下|信息|内容)', query.strip())
-
-            if recall_flag:
+            awg_flag = query.strip().startswith(('自动视频生成', 'auto-video-generateor', 'auto video generateor'))
+            if awg_flag:
+                prompt = f"请做同义句转换：{query}，限制10字以内"
+                session = self.sessions.session_query(prompt, session_id)
+                threading.Thread(target=self.create_web_socket, args=(session.messages[-1:], request_id)).start()
+            elif recall_flag:
                 # 提取信息
                 _index = f'notebot-{receiver}'
                 response = requests.post(self.esman_search_api,
@@ -172,7 +176,15 @@ class NoteBot(XunFeiBot, NotebotImage):
             t2 = time.time()
             logger.info(f"[XunFei-API] response={reply_map[request_id]}, time={t2 - t1}s, usage={usage}")
             self.sessions.session_reply(reply_map[request_id], session_id, usage.get("total_tokens"))
-            if note_flag:
+            if awg_flag:
+                awg_url = 'http://avg.kddbot.com'
+                username = receiver[:4]
+                password_true = receiver[:6]
+                _index = f'notebot-{receiver}'
+                content = query.strip()  # [:-3]
+                _reply = f'欢迎体验自动视频生成器！\n地址：{awg_url}\n用户：{username}\n密码：{password_true}'
+
+            elif note_flag:
                 _index = f'notebot-{receiver}'
                 content = query.strip()  # [:-3]
                 _reply = f'记录信息成功！\n{reply_map[request_id]}'
