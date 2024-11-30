@@ -5,18 +5,19 @@ import re
 import traceback
 
 import requests
-import threading
 import time
 import json
 from datetime import datetime
 import pytz
+import random
 
-from ..xunfei.xunfei_spark_bot import XunFeiBot, Context, Reply, ContextType, logger
-from ..xunfei.xunfei_spark_bot import reply_map, queue_map, ReplyType
-# from voice.baidu.baidu_voice import BaiduVoice
+from bridge.context import ContextType, Context
+from bridge.reply import Reply, ReplyType
+from bot.notebot.chat_gpt_bot import ChatGPTBot, logger
+from bot.notebot.notebot_image import NotebotImage
+
 from voice.ali.ali_voice import AliVoice
 from voice.azure.azure_voice import AzureVoice
-from .notebot_image import NotebotImage
 
 from dotenv import load_dotenv
 
@@ -42,8 +43,14 @@ oov_answers = [line for line in oov_answer_text.split('\n') if line]
 _esman_manage_api = os.environ.get('esman_manage_api', 'http://localhost:6043/manage')
 _esman_search_api = os.environ.get('esman_search_api', 'http://localhost:6043/search')
 
+# 消息队列 map
+queue_map = dict()
 
-class NoteBot(XunFeiBot, NotebotImage):
+# 响应队列 map
+reply_map = dict()
+
+
+class NoteBot(ChatGPTBot, NotebotImage):
     def __init__(self):
         super().__init__()
         self.esman_manage_api = _esman_manage_api
@@ -89,6 +96,10 @@ class NoteBot(XunFeiBot, NotebotImage):
         user_id = hashlib.md5(nickname.encode('utf-8')).hexdigest()
         return out_text, user_id
 
+    def gen_request_id(self, session_id: str):
+        return f'{session_id}_{time.strftime("%Y%m%d_%H%M%S")}_{random.randint(0, 100)}'
+        # return session_id + "_" + str(int(time.time())) + "" + str(random.randint(0, 100))
+
     def reply(self, query, context: Context = None) -> Reply:
         if context.type == ContextType.IMAGE_CREATE:
             # 生成图片
@@ -107,7 +118,7 @@ class NoteBot(XunFeiBot, NotebotImage):
             logger.info("[NoteBot] query={}, receiver={}".format(query, receiver))
             session_id = context["session_id"]
             request_id = self.gen_request_id(session_id)
-            reply_map[request_id] = ""
+            # reply_map[request_id] = ""
             recall_flag = query.strip().endswith('？？？') \
                           or re.search(r'(提取|回忆)(一下|记录|记忆|信息|内容)\W*$', query.strip()) \
                           or re.search(r'^\W*(提取|回忆)(一下|记录|记忆|信息|内容)', query.strip())
@@ -118,7 +129,7 @@ class NoteBot(XunFeiBot, NotebotImage):
             if awg_flag:
                 prompt = f"请做同义句转换：{query}，限制10字以内"
                 session = self.sessions.session_query(prompt, session_id)
-                threading.Thread(target=self.create_web_socket, args=(session.messages[-1:], request_id)).start()
+                # threading.Thread(target=self.create_web_socket, args=(session.messages[-1:], request_id)).start()
             elif recall_flag:
                 # 提取信息
                 _index = f'notebot-{receiver}'
@@ -133,49 +144,45 @@ class NoteBot(XunFeiBot, NotebotImage):
                 else:
                     prompt = query
                 session = self.sessions.session_query(prompt, session_id)
-                threading.Thread(target=self.create_web_socket, args=(session.messages[-1:], request_id)).start()
+                # threading.Thread(target=self.create_web_socket, args=(session.messages[-1:], request_id)).start()
 
             elif note_flag:
                 prompt = f'请简要回答下面问题，回答30字以内。\n\n{query}'
                 session = self.sessions.session_query(prompt, session_id)
-                threading.Thread(target=self.create_web_socket, args=(session.messages[-1:], request_id)).start()
+                # threading.Thread(target=self.create_web_socket, args=(session.messages[-1:], request_id)).start()
 
             elif query.strip().endswith('。。。') or re.search(r'(多轮对话|前文|上下文)\W*$', query.strip()):
                 prompt = query
                 session = self.sessions.session_query(prompt, session_id)
-                threading.Thread(target=self.create_web_socket, args=(session.messages[-10:], request_id)).start()
+                # threading.Thread(target=self.create_web_socket, args=(session.messages[-10:], request_id)).start()
             else:
                 prompt = query
                 session = self.sessions.session_query(prompt, session_id)
-                threading.Thread(target=self.create_web_socket, args=(session.messages[-1:], request_id)).start()
-            depth = 0
-            time.sleep(0.1)
-            t1 = time.time()
-            usage = {}
-            while depth <= 300:
-                try:
-                    data_queue = queue_map.get(request_id)
-                    if not data_queue:
-                        depth += 1
-                        time.sleep(0.1)
-                        continue
-                    data_item = data_queue.get(block=True, timeout=0.1)
-                    if data_item.is_end:
-                        # 请求结束
-                        del queue_map[request_id]
-                        if data_item.reply:
-                            reply_map[request_id] += data_item.reply
-                        usage = data_item.usage
-                        break
+                # threading.Thread(target=self.create_web_socket, args=(session.messages[-1:], request_id)).start()
 
-                    reply_map[request_id] += data_item.reply
-                    depth += 1
-                except Exception as e:
-                    depth += 1
-                    continue
-            t2 = time.time()
-            logger.info(f"[XunFei-API] response={reply_map[request_id]}, time={t2 - t1}s, usage={usage}")
-            self.sessions.session_reply(reply_map[request_id], session_id, usage.get("total_tokens"))
+            # session = self.sessions.session_query(query, session_id)
+            logger.debug("[CHATGPT] session query={}".format(session.messages))
+
+            api_key = context.get("openai_api_key")
+            model = context.get("gpt_model")
+            new_args = None
+            if model:
+                new_args = self.args.copy()
+                new_args["model"] = model
+            # if context.get('stream'):
+            #     # reply in stream
+            #     return self.reply_text_stream(query, new_query, session_id)
+
+            reply_content = self.reply_text(session, api_key, args=new_args)
+            logger.debug(
+                "[CHATGPT] new_query={}, session_id={}, reply_cont={}, completion_tokens={}".format(
+                    session.messages,
+                    session_id,
+                    reply_content["content"],
+                    reply_content["completion_tokens"],
+                )
+            )
+
             if awg_flag:
                 awg_url = 'http://avg.kddbot.com'
                 username = receiver[:4]
@@ -187,19 +194,19 @@ class NoteBot(XunFeiBot, NotebotImage):
             elif note_flag:
                 _index = f'notebot-{receiver}'
                 content = query.strip()  # [:-3]
-                _reply = f'记录信息成功！\n{reply_map[request_id]}'
+                _reply = f'记录信息成功！\n{reply_content["content"]}'
 
             elif recall_flag:
                 _index = f'notebot-{receiver}'
                 content = ''
                 ref = ''.join(['{}. {}\n'.format(i, w.strip().replace('\n', '\t'))
                                for i, w in enumerate(contents[:5], 1)])
-                _reply = f'{reply_map[request_id]}\n\n参考信息：\n{ref}'
+                _reply = f'{reply_content["content"]}\n\n参考信息：\n{ref}'
 
             else:
                 _index = f'notebot-{receiver}'
                 content = ''
-                _reply = reply_map[request_id]
+                _reply = reply_content["content"]
 
             # 记录信息
             _source = context["msg"].__dict__
@@ -238,7 +245,7 @@ class NoteBot(XunFeiBot, NotebotImage):
                     f"[NoteBot-API] esman manage flag={flag.content.decode()}, _index={data['_index']}, _id={data['_id']}")
 
             reply = Reply(ReplyType.TEXT, _reply)
-            del reply_map[request_id]
+            # del reply_map[request_id]
             return reply
         else:
             reply = Reply(ReplyType.ERROR, "Bot不支持处理{}类型的消息".format(context.type))

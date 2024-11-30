@@ -27,3 +27,7 @@ langid # language detect
 edge-tts
 python-dotenv
 pillow
+#add
+tiktoken
+pytz
+pypng
